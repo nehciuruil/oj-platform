@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>博客 - OJ平台</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <a href="index.html" class="logo">
+      <i class="fas fa-code"></i> OJ平台
+    </a>
+    <div class="nav-links">
+      <a href="problems.html"><i class="fas fa-book"></i> 题库</a>
+      <a href="contests.html"><i class="fas fa-trophy"></i> 比赛</a>
+      <a href="blogs.html"><i class="fas fa-pen"></i> 博客</a>
+      <a href="teams.html"><i class="fas fa-users"></i> 团队</a>
+    </div>
+    <div id="auth-links" class="nav-links">
+      <a href="login.html">登录</a>
+      <a href="register.html">注册</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <!-- 创建博客表单 -->
+    <div class="card">
+      <h2 class="text-xl font-bold mb-4">
+        <i class="fas fa-plus-circle text-secondary"></i> 发布新博客
+      </h2>
+      <form id="create-blog-form">
+        <div class="form-group">
+          <label for="title">博客标题</label>
+          <input type="text" id="title" required placeholder="请输入博客标题">
+        </div>
+        <div class="form-group">
+          <label for="content">博客内容</label>
+          <textarea id="content" required placeholder="请输入博客内容"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">发布博客</button>
+      </form>
+      <div id="form-message" class="mt-4"></div>
+    </div>
+
+    <!-- 博客列表 -->
+    <div class="card mt-6">
+      <h2 class="text-xl font-bold mb-4">
+        <i class="fas fa-list text-secondary"></i> 博客列表
+      </h2>
+      <div id="blogs-list" class="space-y-2">
+        <div class="text-center text-gray-400">加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/supabase.js"></script>
+  <script>
+    // 加载博客列表
+    async function loadBlogs() {
+      const { data, error } = await supabase
+        .from('blogs')
+        .select('*, profiles(username)')
+        .order('created_at', { ascending: false });
+      
+      const container = document.getElementById('blogs-list');
+      if (error) {
+        container.innerHTML = `<div class="text-red-500">加载失败：${error.message}</div>`;
+        return;
+      }
+      
+      if (data.length === 0) {
+        container.innerHTML = `<div class="text-gray-400">暂无博客</div>`;
+        return;
+      }
+      
+      // 渲染博客列表
+      container.innerHTML = data.map(blog => {
+        const isOwner = currentUser && currentUser.id === blog.author;
+        const canManage = isOwner || isAdmin;
+        
+        return `
+          <div class="list-item">
+            <div>
+              <a href="#" class="title">${blog.title}</a>
+              <div class="meta">
+                作者：${blog.profiles.username} | 创建时间：${new Date(blog.created_at).toLocaleString()}
+              </div>
+              <div class="mt-2 text-sm text-gray-300">${blog.content.substring(0, 100)}${blog.content.length > 100 ? '...' : ''}</div>
+            </div>
+            ${canManage ? `
+              <div class="flex gap-2">
+                <button onclick="editBlog(${blog.id})" class="btn btn-secondary text-sm">编辑</button>
+                <button onclick="deleteBlog(${blog.id})" class="btn btn-danger text-sm">删除</button>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    // 创建博客
+    document.getElementById('create-blog-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const title = document.getElementById('title').value;
+      const content = document.getElementById('content').value;
+      const message = document.getElementById('form-message');
+
+      if (!currentUser) {
+        message.textContent = '请先登录！';
+        message.style.color = 'red';
+        return;
+      }
+
+      const { error } = await supabase
+        .from('blogs')
+        .insert({
+          title,
+          content,
+          author: currentUser.id
+        });
+
+      if (error) {
+        message.textContent = '发布失败：' + error.message;
+        message.style.color = 'red';
+        return;
+      }
+
+      message.textContent = '发布成功！';
+      message.style.color = 'green';
+      document.getElementById('create-blog-form').reset();
+      loadBlogs();
+      setTimeout(() => message.textContent = '', 2000);
+    });
+
+    // 编辑博客
+    async function editBlog(id) {
+      const { data, error } = await supabase
+        .from('blogs')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (error) {
+        alert('获取博客信息失败：' + error.message);
+        return;
+      }
+
+      const newTitle = prompt('请输入新的博客标题', data.title);
+      const newContent = prompt('请输入新的博客内容', data.content);
+
+      if (!newTitle || !newContent) return;
+
+      const { error: updateError } = await supabase
+        .from('blogs')
+        .update({
+          title: newTitle,
+          content: newContent,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+      
+      if (updateError) {
+        alert('更新失败：' + updateError.message);
+        return;
+      }
+
+      alert('更新成功！');
+      loadBlogs();
+    }
+
+    // 删除博客
+    async function deleteBlog(id) {
+      if (!confirm('确定要删除该博客吗？')) return;
+
+      const { error } = await supabase
+        .from('blogs')
+        .delete()
+        .eq('id', id);
+      
+      if (error) {
+        alert('删除失败：' + error.message);
+        return;
+      }
+
+      alert('删除成功！');
+      loadBlogs();
+    }
+
+    window.onload = async () => {
+      await loadBlogs();
+    };
+  </script>
+</body>
+</html>

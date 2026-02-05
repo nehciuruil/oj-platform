@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>注册 - OJ平台</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <a href="index.html" class="logo">
+      <i class="fas fa-code"></i> OJ平台
+    </a>
+    <div class="nav-links">
+      <a href="problems.html"><i class="fas fa-book"></i> 题库</a>
+      <a href="contests.html"><i class="fas fa-trophy"></i> 比赛</a>
+      <a href="blogs.html"><i class="fas fa-pen"></i> 博客</a>
+      <a href="teams.html"><i class="fas fa-users"></i> 团队</a>
+    </div>
+    <div id="auth-links" class="nav-links">
+      <a href="login.html">登录</a>
+      <a href="register.html">注册</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="card max-w-md mx-auto">
+      <h2 class="text-2xl font-bold mb-6 text-center">用户注册</h2>
+      <form id="register-form">
+        <div class="form-group">
+          <label for="email">邮箱</label>
+          <input type="email" id="email" required placeholder="请输入邮箱（用于接收验证码）">
+        </div>
+        <div class="form-group">
+          <label for="password">密码</label>
+          <input type="password" id="password" required placeholder="至少8位字符">
+        </div>
+        <button type="submit" class="btn btn-primary w-full">注册</button>
+        <p class="text-center mt-4 text-gray-400">
+          已有账号？<a href="login.html" class="text-secondary">立即登录</a>
+        </p>
+      </form>
+      <div id="message" class="mt-4 text-center"></div>
+    </div>
+  </div>
+
+  <script src="js/supabase.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    // 注册表单提交
+    document.getElementById('register-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const message = document.getElementById('message');
+
+      // 验证密码长度
+      if (password.length < 8) {
+        message.textContent = '密码长度至少8位！';
+        message.style.color = 'red';
+        return;
+      }
+
+      // 注册账号（自动发送验证邮件）
+      const { error } = await supabase.auth.signUp({
+        email,
+        password
+      });
+
+      if (error) {
+        message.textContent = '注册失败：' + error.message;
+        message.style.color = 'red';
+        return;
+      }
+
+      // 注册成功
+      message.textContent = '注册成功！验证码已发送至你的邮箱，请验证后登录';
+      message.style.color = 'green';
+      setTimeout(() => {
+        window.location.href = 'login.html';
+      }, 2000);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>个人中心 - OJ平台</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <a href="index.html" class="logo"><i class="fas fa-code"></i> OJ平台</a>
+    <div class="nav-links">
+      <a href="problems.html">题库</a>
+      <a href="contests.html">比赛</a>
+      <a href="blogs.html">博客</a>
+      <a href="teams.html">团队</a>
+    </div>
+    <div id="auth-links"></div>
+  </nav>
+
+  <div class="container">
+    <div class="card max-w-2xl mx-auto">
+      <h2 class="text-2xl font-bold mb-6 text-center">个人中心</h2>
+      <div class="flex flex-col items-center mb-6">
+        <img id="avatar" src="" alt="头像" class="w-24 h-24 rounded-full mb-2">
+        <h3 id="username" class="text-xl font-semibold"></h3>
+        <p id="email" class="text-gray-400"></p>
+      </div>
+
+      <form id="profile-form">
+        <div class="form-group">
+          <label for="new-username">修改用户名</label>
+          <input type="text" id="new-username" required>
+        </div>
+        <div class="form-group">
+          <label for="new-avatar">头像URL</label>
+          <input type="url" id="new-avatar" placeholder="输入头像图片链接">
+        </div>
+        <button type="submit" class="btn btn-primary w-full">保存修改</button>
+      </form>
+      <div id="message" class="mt-4 text-center"></div>
+    </div>
+  </div>
+
+  <script src="js/supabase.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    window.onload = async () => {
+      authGuard();
+      await loadProfile();
+    };
+
+    // 加载个人信息
+    async function loadProfile() {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', currentUser.id)
+        .single();
+      
+      if (error) return;
+
+      document.getElementById('username').textContent = data.username;
+      document.getElementById('email').textContent = currentUser.email;
+      document.getElementById('avatar').src = data.avatar_url;
+      document.getElementById('new-username').value = data.username;
+      document.getElementById('new-avatar').value = data.avatar_url;
+    }
+
+    // 更新个人信息
+    document.getElementById('profile-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = document.getElementById('new-username').value;
+      const avatar_url = document.getElementById('new-avatar').value;
+      const message = document.getElementById('message');
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          username,
+          avatar_url,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', currentUser.id);
+      
+      if (error) {
+        message.textContent = '修改失败：用户名重复';
+        message.style.color = 'red';
+        return;
+      }
+
+      message.textContent = '修改成功！';
+      message.style.color = 'green';
+      loadProfile();
+    });
+  </script>
+</body>
+</html>

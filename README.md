@@ -1,0 +1,2 @@
+# oj-platform
+SuccessOJ

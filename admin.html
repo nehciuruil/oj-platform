@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理员后台 - OJ平台</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <a href="index.html" class="logo"><i class="fas fa-code"></i> OJ平台</a>
+    <div class="nav-links">
+      <a href="problems.html">题库</a>
+      <a href="contests.html">比赛</a>
+      <a href="blogs.html">博客</a>
+      <a href="teams.html">团队</a>
+      <a href="admin.html" class="text-secondary">管理员后台</a>
+    </div>
+    <div id="auth-links"></div>
+  </nav>
+
+  <div class="container">
+    <div class="card">
+      <h1 class="text-2xl font-bold mb-6 text-secondary">管理员总控制台</h1>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div class="bg-gray-800 p-4 rounded-lg">
+          <h3 class="text-lg font-semibold mb-2">用户管理</h3>
+          <p class="text-gray-400 mb-3">管理平台所有用户信息、权限</p>
+          <button onclick="loadUsers()" class="btn btn-secondary">查看所有用户</button>
+        </div>
+        <div class="bg-gray-800 p-4 rounded-lg">
+          <h3 class="text-lg font-semibold mb-2">内容总管理</h3>
+          <p class="text-gray-400 mb-3">编辑/删除任意题目、比赛、博客、团队</p>
+          <button onclick="loadAllContent()" class="btn btn-secondary">查看所有内容</button>
+        </div>
+      </div>
+
+      <!-- 数据展示区域 -->
+      <div id="admin-content" class="mt-6">
+        <div class="text-center text-gray-400">请选择管理模块</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/supabase.js"></script>
+  <script>
+    // 权限校验：非管理员直接跳转首页
+    window.onload = () => {
+      if (!isAdmin) {
+        alert('权限不足，仅管理员可访问！');
+        window.location.href = 'index.html';
+      }
+    };
+
+    // 加载所有用户
+    async function loadUsers() {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*, auth:auth.users(email)')
+        .order('created_at', { ascending: false });
+      
+      const container = document.getElementById('admin-content');
+      if (error) {
+        container.innerHTML = `<div class="text-red-500">加载失败：${error.message}</div>`;
+        return;
+      }
+
+      container.innerHTML = `
+        <h2 class="text-xl font-bold mb-4">平台用户列表</h2>
+        <div class="space-y-2">
+          ${data.map(user => `
+            <div class="list-item">
+              <div>
+                <p>用户名：${user.username}</p>
+                <p class="text-sm text-gray-400">邮箱：${user.auth.email} | UID：${user.id}</p>
+              </div>
+              <button onclick="deleteUser('${user.id}')" class="btn btn-danger text-sm">删除用户</button>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    // 加载所有平台内容
+    async function loadAllContent() {
+      const [problems, contests, blogs, teams] = await Promise.all([
+        supabase.from('problems').select('*'),
+        supabase.from('contests').select('*'),
+        supabase.from('blogs').select('*'),
+        supabase.from('teams').select('*')
+      ]);
+
+      const container = document.getElementById('admin-content');
+      container.innerHTML = `
+        <h2 class="text-xl font-bold mb-4">全平台内容管理</h2>
+        <div class="space-y-6">
+          <!-- 题目管理 -->
+          <div>
+            <h3 class="text-lg font-semibold text-secondary mb-2">题目(${problems.data.length})</h3>
+            <div class="space-y-2">
+              ${problems.data.map(p => `
+                <div class="list-item">
+                  <span>${p.id} - ${p.title}</span>
+                  <button onclick="deleteById('problems', ${p.id})" class="btn btn-danger text-sm">删除</button>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          <!-- 比赛管理 -->
+          <div>
+            <h3 class="text-lg font-semibold text-secondary mb-2">比赛(${contests.data.length})</h3>
+            <div class="space-y-2">
+              ${contests.data.map(c => `
+                <div class="list-item">
+                  <span>${c.id} - ${c.title}</span>
+                  <button onclick="deleteById('contests', ${c.id})" class="btn btn-danger text-sm">删除</button>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          <!-- 博客管理 -->
+          <div>
+            <h3 class="text-lg font-semibold text-secondary mb-2">博客(${blogs.data.length})</h3>
+            <div class="space-y-2">
+              ${blogs.data.map(b => `
+                <div class="list-item">
+                  <span>${b.id} - ${b.title}</span>
+                  <button onclick="deleteById('blogs', ${b.id})" class="btn btn-danger text-sm">删除</button>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          <!-- 团队管理 -->
+          <div>
+            <h3 class="text-lg font-semibold text-secondary mb-2">团队(${teams.data.length})</h3>
+            <div class="space-y-2">
+              ${teams.data.map(t => `
+                <div class="list-item">
+                  <span>${t.id} - ${t.name}</span>
+                  <button onclick="deleteById('teams', ${t.id})" class="btn btn-danger text-sm">删除</button>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // 通用删除方法（管理员）
+    async function deleteById(table, id) {
+      if (!confirm(`确定删除该${table}内容？`)) return;
+      const { error } = await supabase.from(table).delete().eq('id', id);
+      if (error) alert('删除失败：' + error.message);
+      else {
+        alert('删除成功！');
+        loadAllContent();
+      }
+    }
+
+    // 删除用户
+    async function deleteUser(uid) {
+      if (!confirm('确定删除该用户？所有关联数据将被清除！')) return;
+      // 先删用户资料，再删认证用户
+      await supabase.from('profiles').delete().eq('id', uid);
+      const { error } = await supabase.auth.admin.deleteUser(uid);
+      
+      if (error) alert('删除失败：' + error.message);
+      else {
+        alert('删除成功！');
+        loadUsers();
+      }
+    }
+  </script>
+</body>
+</html>

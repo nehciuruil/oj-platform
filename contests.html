@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>比赛 - OJ平台</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <a href="index.html" class="logo">
+      <i class="fas fa-code"></i> OJ平台
+    </a>
+    <div class="nav-links">
+      <a href="problems.html"><i class="fas fa-book"></i> 题库</a>
+      <a href="contests.html"><i class="fas fa-trophy"></i> 比赛</a>
+      <a href="blogs.html"><i class="fas fa-pen"></i> 博客</a>
+      <a href="teams.html"><i class="fas fa-users"></i> 团队</a>
+    </div>
+    <div id="auth-links" class="nav-links">
+      <a href="login.html">登录</a>
+      <a href="register.html">注册</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <!-- 创建比赛表单 -->
+    <div class="card">
+      <h2 class="text-xl font-bold mb-4">
+        <i class="fas fa-plus-circle text-secondary"></i> 创建新比赛
+      </h2>
+      <form id="create-contest-form">
+        <div class="form-group">
+          <label for="title">比赛名称</label>
+          <input type="text" id="title" required placeholder="请输入比赛名称">
+        </div>
+        <div class="form-group">
+          <label for="start_time">开始时间</label>
+          <input type="datetime-local" id="start_time" required>
+        </div>
+        <div class="form-group">
+          <label for="end_time">结束时间</label>
+          <input type="datetime-local" id="end_time" required>
+        </div>
+        <div class="form-group">
+          <label for="description">比赛描述</label>
+          <textarea id="description" required placeholder="请输入比赛描述"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">创建比赛</button>
+      </form>
+      <div id="form-message" class="mt-4"></div>
+    </div>
+
+    <!-- 比赛列表 -->
+    <div class="card mt-6">
+      <h2 class="text-xl font-bold mb-4">
+        <i class="fas fa-list text-secondary"></i> 比赛列表
+      </h2>
+      <div id="contests-list" class="space-y-2">
+        <div class="text-center text-gray-400">加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/supabase.js"></script>
+  <script>
+    // 加载比赛列表
+    async function loadContests() {
+      const { data, error } = await supabase
+        .from('contests')
+        .select('*, profiles(username)')
+        .order('start_time', { ascending: true });
+      
+      const container = document.getElementById('contests-list');
+      if (error) {
+        container.innerHTML = `<div class="text-red-500">加载失败：${error.message}</div>`;
+        return;
+      }
+      
+      if (data.length === 0) {
+        container.innerHTML = `<div class="text-gray-400">暂无比赛</div>`;
+        return;
+      }
+      
+      // 渲染比赛列表
+      container.innerHTML = data.map(contest => {
+        const isOwner = currentUser && currentUser.id === contest.creator;
+        const canManage = isOwner || isAdmin;
+        const isUpcoming = new Date(contest.start_time) > new Date();
+        
+        return `
+          <div class="list-item">
+            <div>
+              <a href="#" class="title">${contest.title} ${isUpcoming ? '[未开始]' : '[已开始/结束]'}</a>
+              <div class="meta">
+                时间：${new Date(contest.start_time).toLocaleString()} 至 ${new Date(contest.end_time).toLocaleString()} | 作者：${contest.profiles.username}
+              </div>
+              <div class="mt-2 text-sm text-gray-300">${contest.description.substring(0, 100)}${contest.description.length > 100 ? '...' : ''}</div>
+            </div>
+            ${canManage ? `
+              <div class="flex gap-2">
+                <button onclick="editContest(${contest.id})" class="btn btn-secondary text-sm">编辑</button>
+                <button onclick="deleteContest(${contest.id})" class="btn btn-danger text-sm">删除</button>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    // 创建比赛
+    document.getElementById('create-contest-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const title = document.getElementById('title').value;
+      const start_time = document.getElementById('start_time').value;
+      const end_time = document.getElementById('end_time').value;
+      const description = document.getElementById('description').value;
+      const message = document.getElementById('form-message');
+
+      if (!currentUser) {
+        message.textContent = '请先登录！';
+        message.style.color = 'red';
+        return;
+      }
+
+      // 验证时间
+      if (new Date(start_time) >= new Date(end_time)) {
+        message.textContent = '结束时间必须晚于开始时间！';
+        message.style.color = 'red';
+        return;
+      }
+
+      const { error } = await supabase
+        .from('contests')
+        .insert({
+          title,
+          start_time,
+          end_time,
+          description,
+          creator: currentUser.id
+        });
+
+      if (error) {
+        message.textContent = '创建失败：' + error.message;
+        message.style.color = 'red';
+        return;
+      }
+
+      message.textContent = '创建成功！';
+      message.style.color = 'green';
+      document.getElementById('create-contest-form').reset();
+      loadContests();
+      setTimeout(() => message.textContent = '', 2000);
+    });
+
+    // 编辑比赛
+    async function editContest(id) {
+      const { data, error } = await supabase
+        .from('contests')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (error) {
+        alert('获取比赛信息失败：' + error.message);
+        return;
+      }
+
+      const newTitle = prompt('请输入新的比赛名称', data.title);
+      const newStart = prompt('请输入新的开始时间（格式：YYYY-MM-DD HH:MM）', new Date(data.start_time).toLocaleString().replace(/\//g, '-'));
+      const newEnd = prompt('请输入新的结束时间（格式：YYYY-MM-DD HH:MM）', new Date(data.end_time).toLocaleString().replace(/\//g, '-'));
+      const newDesc = prompt('请输入新的比赛描述', data.description);
+
+      if (!newTitle || !newStart || !newEnd || !newDesc) return;
+
+      // 转换时间格式
+      const start_time = new Date(newStart).toISOString();
+      const end_time = new Date(newEnd).toISOString();
+
+      const { error: updateError } = await supabase
+        .from('contests')
+        .update({
+          title: newTitle,
+          start_time,
+          end_time,
+          description: newDesc,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+      
+      if (updateError) {
+        alert('更新失败：' + updateError.message);
+        return;
+      }
+
+      alert('更新成功！');
+      loadContests();
+    }
+
+    // 删除比赛
+    async function deleteContest(id) {
+      if (!confirm('确定要删除该比赛吗？')) return;
+
+      const { error } = await supabase
+        .from('contests')
+        .delete()
+        .eq('id', id);
+      
+      if (error) {
+        alert('删除失败：' + error.message);
+        return;
+      }
+
+      alert('删除成功！');
+      loadContests();
+    }
+
+    window.onload = async () => {
+      await loadContests();
+    };
+  </script>
+</body>
+</html>

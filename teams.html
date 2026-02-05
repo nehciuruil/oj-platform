@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>团队 - OJ平台</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <a href="index.html" class="logo">
+      <i class="fas fa-code"></i> OJ平台
+    </a>
+    <div class="nav-links">
+      <a href="problems.html"><i class="fas fa-book"></i> 题库</a>
+      <a href="contests.html"><i class="fas fa-trophy"></i> 比赛</a>
+      <a href="blogs.html"><i class="fas fa-pen"></i> 博客</a>
+      <a href="teams.html"><i class="fas fa-users"></i> 团队</a>
+    </div>
+    <div id="auth-links" class="nav-links">
+      <a href="login.html">登录</a>
+      <a href="register.html">注册</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <!-- 创建团队表单 -->
+    <div class="card">
+      <h2 class="text-xl font-bold mb-4">
+        <i class="fas fa-plus-circle text-secondary"></i> 创建新团队
+      </h2>
+      <form id="create-team-form">
+        <div class="form-group">
+          <label for="name">团队名称</label>
+          <input type="text" id="name" required placeholder="请输入团队名称（唯一）">
+        </div>
+        <div class="form-group">
+          <label for="description">团队描述</label>
+          <textarea id="description" required placeholder="请输入团队描述"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">创建团队</button>
+      </form>
+      <div id="form-message" class="mt-4"></div>
+    </div>
+
+    <!-- 团队列表 -->
+    <div class="card mt-6">
+      <h2 class="text-xl font-bold mb-4">
+        <i class="fas fa-list text-secondary"></i> 团队列表
+      </h2>
+    <div id="teams-list" class="space-y-2">
+        <div class="text-center text-gray-400">加载中...</div>
+      </div>
+    </div>
+
+    <!-- 团队成员管理模态框 -->
+    <div id="member-modal" class="fixed inset-0 bg-black/70 hidden flex-center p-4">
+      <div class="bg-gray-800 rounded-lg p-6 w-full max-w-md">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-xl font-bold">团队成员管理</h3>
+          <button onclick="closeMemberModal()" class="text-gray-400 hover:text-white">
+            <i class="fas fa-times text-xl"></i>
+          </button>
+        </div>
+        <div id="member-list" class="mb-4 max-h-60 overflow-y-auto"></div>
+        <div class="form-group">
+          <label for="invite-email">邀请成员（邮箱）</label>
+          <input type="email" id="invite-email" placeholder="请输入用户邮箱">
+        </div>
+        <button onclick="inviteMember()" class="btn btn-secondary w-full">邀请加入</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/supabase.js"></script>
+  <script>
+    let currentTeamId = null;
+    const modal = document.getElementById('member-modal');
+
+    // 加载团队列表
+    async function loadTeams() {
+      const { data, error } = await supabase
+        .from('teams')
+        .select('*, profiles(username)')
+        .order('created_at', { ascending: false });
+      
+      const container = document.getElementById('teams-list');
+      if (error) {
+        container.innerHTML = `<div class="text-red-500">加载失败：${error.message}</div>`;
+        return;
+      }
+      
+      if (data.length === 0) {
+        container.innerHTML = `<div class="text-gray-400">暂无团队</div>`;
+        return;
+      }
+      
+      container.innerHTML = data.map(team => {
+        const isOwner = currentUser && currentUser.id === team.owner;
+        const canManage = isOwner || isAdmin;
+        
+        return `
+          <div class="list-item">
+            <div>
+              <a href="#" class="title">${team.name}</a>
+              <div class="meta">
+                队长：${team.profiles.username} | 创建时间：${new Date(team.created_at).toLocaleString()}
+              </div>
+              <div class="mt-2 text-sm text-gray-300">${team.description}</div>
+            </div>
+            ${canManage ? `
+              <div class="flex gap-2">
+                <button onclick="manageMembers(${team.id})" class="btn btn-secondary text-sm">成员管理</button>
+                <button onclick="editTeam(${team.id})" class="btn btn-secondary text-sm">编辑</button>
+                <button onclick="deleteTeam(${team.id})" class="btn btn-danger text-sm">解散</button>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    // 创建团队
+    document.getElementById('create-team-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('name').value;
+      const description = document.getElementById('description').value;
+      const message = document.getElementById('form-message');
+
+      if (!currentUser) {
+        message.textContent = '请先登录！';
+        message.style.color = 'red';
+        return;
+      }
+
+      const { error } = await supabase
+        .from('teams')
+        .insert({
+          name,
+          description,
+          owner: currentUser.id
+        });
+
+      if (error) {
+        message.textContent = '创建失败：团队名称已存在或权限不足';
+        message.style.color = 'red';
+        return;
+      }
+
+      message.textContent = '创建成功！';
+      message.style.color = 'green';
+      document.getElementById('create-team-form').reset();
+      loadTeams();
+      setTimeout(() => message.textContent = '', 2000);
+    });
+
+    // 成员管理模态框
+    function manageMembers(teamId) {
+      currentTeamId = teamId;
+      modal.classList.remove('hidden');
+      loadTeamMembers(teamId);
+    }
+
+    function closeMemberModal() {
+      modal.classList.add('hidden');
+      currentTeamId = null;
+    }
+
+    // 加载团队成员
+    async function loadTeamMembers(teamId) {
+      const { data, error } = await supabase
+        .from('team_members')
+        .select('*, profiles(username, id)')
+        .eq('team_id', teamId);
+      
+      const container = document.getElementById('member-list');
+      if (error) {
+        container.innerHTML = `<div class="text-red-500">加载成员失败：${error.message}</div>`;
+        return;
+      }
+
+      container.innerHTML = data.map(member => `
+        <div class="flex justify-between items-center p-2 border-b border-gray-700">
+          <span>${member.profiles.username}</span>
+          <span class="text-sm text-gray-400">${member.role}</span>
+          ${currentUser?.id === member.profiles.id || isAdmin ? `
+            <button onclick="removeMember(${member.id})" class="text-red-500 text-sm">移除</button>
+          ` : ''}
+        </div>
+      `).join('');
+    }
+
+    // 邀请成员
+    async function inviteMember() {
+      const email = document.getElementById('invite-email').value;
+      if (!email || !currentTeamId) return;
+
+      // 获取用户ID
+      const { data: userData, error: userError } = await supabase
+        .from('profiles')
+        .select('id')
+        .join('auth.users', 'profiles.id', '=', 'auth.users.id')
+        .eq('auth.users.email', email)
+        .single();
+      
+      if (userError || !userData) {
+        alert('该用户不存在！');
+        return;
+      }
+
+      // 添加成员
+      const { error } = await supabase
+        .from('team_members')
+        .insert({
+          team_id: currentTeamId,
+          user_id: userData.id,
+          role: 'member'
+        });
+
+      if (error) {
+        alert('邀请失败：用户已在团队中');
+        return;
+      }
+
+      alert('邀请成功！');
+      document.getElementById('invite-email').value = '';
+      loadTeamMembers(currentTeamId);
+    }
+
+    // 移除成员
+    async function removeMember(memberId) {
+      if (!confirm('确定移除该成员？')) return;
+
+      const { error } = await supabase
+        .from('team_members')
+        .delete()
+        .eq('id', memberId);
+      
+      if (error) {
+        alert('移除失败：' + error.message);
+        return;
+      }
+
+      alert('移除成功！');
+      loadTeamMembers(currentTeamId);
+    }
+
+    // 编辑团队
+    async function editTeam(id) {
+      const { data, error } = await supabase
+        .from('teams')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (error) {
+        alert('获取团队信息失败：' + error.message);
+        return;
+      }
+
+      const newName = prompt('请输入新的团队名称', data.name);
+      const newDesc = prompt('请输入新的团队描述', data.description);
+
+      if (!newName || !newDesc) return;
+
+      const { error: updateError } = await supabase
+        .from('teams')
+        .update({
+          name: newName,
+          description: newDesc,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+      
+      if (updateError) {
+        alert('更新失败：名称重复或权限不足');
+        return;
+      }
+
+      alert('更新成功！');
+      loadTeams();
+    }
+
+    // 解散团队
+    async function deleteTeam(id) {
+      if (!confirm('确定解散该团队？所有成员数据将被删除！')) return;
+
+      const { error } = await supabase
+        .from('teams')
+        .delete()
+        .eq('id', id);
+      
+      if (error) {
+        alert('解散失败：' + error.message);
+        return;
+      }
+
+      alert('解散成功！');
+      loadTeams();
+    }
+
+    window.onload = async () => {
+      await loadTeams();
+    };
+  </script>
+</body>
+</html>

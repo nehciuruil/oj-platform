@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>洛谷风格OJ平台</title>
+  <!-- Tailwind CSS（快速样式补充） -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome图标 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Supabase SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- 自定义样式 -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- 顶部导航栏 -->
+  <nav class="navbar">
+    <a href="index.html" class="logo">
+      <i class="fas fa-code"></i> OJ平台
+    </a>
+    <div class="nav-links">
+      <a href="problems.html"><i class="fas fa-book"></i> 题库</a>
+      <a href="contests.html"><i class="fas fa-trophy"></i> 比赛</a>
+      <a href="blogs.html"><i class="fas fa-pen"></i> 博客</a>
+      <a href="teams.html"><i class="fas fa-users"></i> 团队</a>
+    </div>
+    <div id="auth-links" class="nav-links">
+      <a href="login.html">登录</a>
+      <a href="register.html">注册</a>
+    </div>
+  </nav>
+
+  <!-- 主内容区 -->
+  <div class="container">
+    <div class="card">
+      <h1 class="text-2xl font-bold mb-4">欢迎使用OJ平台</h1>
+      <p class="text-gray-300 mb-6">基于Supabase + GitHub Pages搭建的类洛谷OJ平台，支持登录注册、题库、比赛、博客、团队功能。</p>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- 题库卡片 -->
+        <div class="bg-gray-800 rounded-lg p-4 hover:bg-gray-700 transition">
+          <i class="fas fa-book text-3xl text-primary mb-2"></i>
+          <h3 class="text-lg font-semibold mb-1">题库</h3>
+          <p class="text-sm text-gray-400">包含各类算法题目，支持按难度筛选</p>
+          <a href="problems.html" class="text-secondary mt-2 inline-block">进入题库 →</a>
+        </div>
+        
+        <!-- 比赛卡片 -->
+        <div class="bg-gray-800 rounded-lg p-4 hover:bg-gray-700 transition">
+          <i class="fas fa-trophy text-3xl text-primary mb-2"></i>
+          <h3 class="text-lg font-semibold mb-1">比赛</h3>
+          <p class="text-sm text-gray-400">创建/参与算法比赛，模拟真实竞赛环境</p>
+          <a href="contests.html" class="text-secondary mt-2 inline-block">查看比赛 →</a>
+        </div>
+        
+        <!-- 博客卡片 -->
+        <div class="bg-gray-800 rounded-lg p-4 hover:bg-gray-700 transition">
+          <i class="fas fa-pen text-3xl text-primary mb-2"></i>
+          <h3 class="text-lg font-semibold mb-1">博客</h3>
+          <p class="text-sm text-gray-400">分享算法心得、解题思路、学习笔记</p>
+          <a href="blogs.html" class="text-secondary mt-2 inline-block">浏览博客 →</a>
+        </div>
+        
+        <!-- 团队卡片 -->
+        <div class="bg-gray-800 rounded-lg p-4 hover:bg-gray-700 transition">
+          <i class="fas fa-users text-3xl text-primary mb-2"></i>
+          <h3 class="text-lg font-semibold mb-1">团队</h3>
+          <p class="text-sm text-gray-400">创建团队，邀请队友共同学习、刷题</p>
+          <a href="teams.html" class="text-secondary mt-2 inline-block">管理团队 →</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- 最新题目 -->
+    <div class="card mt-6">
+      <h2 class="text-xl font-bold mb-4">
+        <i class="fas fa-fire text-secondary"></i> 最新题目
+      </h2>
+      <div id="latest-problems" class="space-y-2">
+        <!-- 动态加载最新题目 -->
+        <div class="text-center text-gray-400">加载中...</div>
+      </div>
+    </div>
+
+    <!-- 近期比赛 -->
+    <div class="card mt-6">
+      <h2 class="text-xl font-bold mb-4">
+        <i class="fas fa-calendar-alt text-secondary"></i> 近期比赛
+      </h2>
+      <div id="upcoming-contests" class="space-y-2">
+        <!-- 动态加载近期比赛 -->
+        <div class="text-center text-gray-400">加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 脚本加载 -->
+  <script src="js/supabase.js"></script>
+  <script>
+    // 加载最新题目
+    async function loadLatestProblems() {
+      const { data, error } = await supabase
+        .from('problems')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(5);
+      
+      const container = document.getElementById('latest-problems');
+      if (error) {
+        container.innerHTML = `<div class="text-red-500">加载失败：${error.message}</div>`;
+        return;
+      }
+      
+      if (data.length === 0) {
+        container.innerHTML = `<div class="text-gray-400">暂无题目</div>`;
+        return;
+      }
+      
+      container.innerHTML = data.map(problem => `
+        <div class="list-item">
+          <a href="problems.html#${problem.id}" class="title">${problem.title}</a>
+          <div class="meta">
+            难度：${problem.difficulty} | 创建时间：${new Date(problem.created_at).toLocaleString()}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // 加载近期比赛
+    async function loadUpcomingContests() {
+      const now = new Date();
+      const { data, error } = await supabase
+        .from('contests')
+        .select('*')
+        .gte('start_time', now.toISOString())
+        .order('start_time', { ascending: true })
+        .limit(5);
+      
+      const container = document.getElementById('upcoming-contests');
+      if (error) {
+        container.innerHTML = `<div class="text-red-500">加载失败：${error.message}</div>`;
+        return;
+      }
+      
+      if (data.length === 0) {
+        container.innerHTML = `<div class="text-gray-400">暂无近期比赛</div>`;
+        return;
+      }
+      
+      container.innerHTML = data.map(contest => `
+        <div class="list-item">
+          <a href="contests.html#${contest.id}" class="title">${contest.title}</a>
+          <div class="meta">
+            开始时间：${new Date(contest.start_time).toLocaleString()}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // 页面加载完成后执行
+    window.onload = async () => {
+      await loadLatestProblems();
+      await loadUpcomingContests();
+    };
+  </script>
+</body>
+</html>

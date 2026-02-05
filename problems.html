@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>题库 - OJ平台</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <a href="index.html" class="logo">
+      <i class="fas fa-code"></i> OJ平台
+    </a>
+    <div class="nav-links">
+      <a href="problems.html"><i class="fas fa-book"></i> 题库</a>
+      <a href="contests.html"><i class="fas fa-trophy"></i> 比赛</a>
+      <a href="blogs.html"><i class="fas fa-pen"></i> 博客</a>
+      <a href="teams.html"><i class="fas fa-users"></i> 团队</a>
+    </div>
+    <div id="auth-links" class="nav-links">
+      <a href="login.html">登录</a>
+      <a href="register.html">注册</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <!-- 创建题目表单 -->
+    <div class="card">
+      <h2 class="text-xl font-bold mb-4">
+        <i class="fas fa-plus-circle text-secondary"></i> 创建新题目
+      </h2>
+      <form id="create-problem-form">
+        <div class="form-group">
+          <label for="title">题目名称</label>
+          <input type="text" id="title" required placeholder="请输入题目名称">
+        </div>
+        <div class="form-group">
+          <label for="difficulty">难度</label>
+          <select id="difficulty" required>
+            <option value="">请选择难度</option>
+            <option value="入门">入门</option>
+            <option value="普及-">普及-</option>
+            <option value="普及/提高-">普及/提高-</option>
+            <option value="普及+/提高">普及+/提高</option>
+            <option value="提高+/省选-">提高+/省选-</option>
+            <option value="省选/NOI-">省选/NOI-</option>
+            <option value="NOI/NOI+/CTSC">NOI/NOI+/CTSC</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="description">题目描述</label>
+          <textarea id="description" required placeholder="请输入题目描述"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">创建题目</button>
+      </form>
+      <div id="form-message" class="mt-4"></div>
+    </div>
+
+    <!-- 题目列表 -->
+    <div class="card mt-6">
+      <h2 class="text-xl font-bold mb-4">
+        <i class="fas fa-list text-secondary"></i> 题目列表
+      </h2>
+      <div id="problems-list" class="space-y-2">
+        <div class="text-center text-gray-400">加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/supabase.js"></script>
+  <script>
+    // 加载题目列表
+    async function loadProblems() {
+      const { data, error } = await supabase
+        .from('problems')
+        .select('*, profiles(username)')
+        .order('created_at', { ascending: false });
+      
+      const container = document.getElementById('problems-list');
+      if (error) {
+        container.innerHTML = `<div class="text-red-500">加载失败：${error.message}</div>`;
+        return;
+      }
+      
+      if (data.length === 0) {
+        container.innerHTML = `<div class="text-gray-400">暂无题目</div>`;
+        return;
+      }
+      
+      // 渲染题目列表（判断是否为创建者/管理员，显示编辑/删除按钮）
+      container.innerHTML = data.map(problem => {
+        const isOwner = currentUser && currentUser.id === problem.creator;
+        const canManage = isOwner || isAdmin;
+        
+        return `
+          <div class="list-item">
+            <div>
+              <a href="#" class="title">${problem.title}</a>
+              <div class="meta">
+                难度：${problem.difficulty} | 作者：${problem.profiles.username} | 创建时间：${new Date(problem.created_at).toLocaleString()}
+              </div>
+              <div class="mt-2 text-sm text-gray-300">${problem.description.substring(0, 100)}${problem.description.length > 100 ? '...' : ''}</div>
+            </div>
+            ${canManage ? `
+              <div class="flex gap-2">
+                <button onclick="editProblem(${problem.id})" class="btn btn-secondary text-sm">编辑</button>
+                <button onclick="deleteProblem(${problem.id})" class="btn btn-danger text-sm">删除</button>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    // 创建题目
+    document.getElementById('create-problem-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const title = document.getElementById('title').value;
+      const difficulty = document.getElementById('difficulty').value;
+      const description = document.getElementById('description').value;
+      const message = document.getElementById('form-message');
+
+      if (!currentUser) {
+        message.textContent = '请先登录！';
+        message.style.color = 'red';
+        return;
+      }
+
+      const { error } = await supabase
+        .from('problems')
+        .insert({
+          title,
+          difficulty,
+          description,
+          creator: currentUser.id
+        });
+
+      if (error) {
+        message.textContent = '创建失败：' + error.message;
+        message.style.color = 'red';
+        return;
+      }
+
+      // 创建成功
+      message.textContent = '创建成功！';
+      message.style.color = 'green';
+      // 重置表单并重新加载列表
+      document.getElementById('create-problem-form').reset();
+      loadProblems();
+      // 清除提示
+      setTimeout(() => message.textContent = '', 2000);
+    });
+
+    // 编辑题目（简易弹窗）
+    async function editProblem(id) {
+      // 获取题目信息
+      const { data, error } = await supabase
+        .from('problems')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (error) {
+        alert('获取题目信息失败：' + error.message);
+        return;
+      }
+
+      // 弹窗输入新内容
+      const newTitle = prompt('请输入新的题目名称', data.title);
+      const newDifficulty = prompt('请输入新的难度（如：入门、普及-）', data.difficulty);
+      const newDescription = prompt('请输入新的题目描述', data.description);
+
+      if (!newTitle || !newDifficulty || !newDescription) return;
+
+      // 更新题目
+      const { error: updateError } = await supabase
+        .from('problems')
+        .update({
+          title: newTitle,
+          difficulty: newDifficulty,
+          description: newDescription,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+      
+      if (updateError) {
+        alert('更新失败：' + updateError.message);
+        return;
+      }
+
+      alert('更新成功！');
+      loadProblems();
+    }
+
+    // 删除题目
+    async function deleteProblem(id) {
+      if (!confirm('确定要删除该题目吗？')) return;
+
+      const { error } = await supabase
+        .from('problems')
+        .delete()
+        .eq('id', id);
+      
+      if (error) {
+        alert('删除失败：' + error.message);
+        return;
+      }
+
+      alert('删除成功！');
+      loadProblems();
+    }
+
+    // 页面加载完成后执行
+    window.onload = async () => {
+      await loadProblems();
+    };
+  </script>
+</body>
+</html>

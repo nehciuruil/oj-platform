@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 - OJ平台</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <a href="index.html" class="logo">
+      <i class="fas fa-code"></i> OJ平台
+    </a>
+    <div class="nav-links">
+      <a href="problems.html"><i class="fas fa-book"></i> 题库</a>
+      <a href="contests.html"><i class="fas fa-trophy"></i> 比赛</a>
+      <a href="blogs.html"><i class="fas fa-pen"></i> 博客</a>
+      <a href="teams.html"><i class="fas fa-users"></i> 团队</a>
+    </div>
+    <div id="auth-links" class="nav-links">
+      <a href="login.html">登录</a>
+      <a href="register.html">注册</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="card max-w-md mx-auto">
+      <h2 class="text-2xl font-bold mb-6 text-center">用户登录</h2>
+      <form id="login-form">
+        <div class="form-group">
+          <label for="email">邮箱</label>
+          <input type="email" id="email" required placeholder="请输入注册邮箱">
+        </div>
+        <div class="form-group">
+          <label for="password">密码</label>
+          <input type="password" id="password" required placeholder="请输入密码">
+        </div>
+        <div class="form-group">
+          <label for="code">验证码（如未验证邮箱）</label>
+          <input type="text" id="code" placeholder="请输入邮箱收到的验证码（可选）">
+        </div>
+        <button type="submit" class="btn btn-primary w-full">登录</button>
+        <p class="text-center mt-4 text-gray-400">
+          还没有账号？<a href="register.html" class="text-secondary">立即注册</a>
+        </p>
+      </form>
+      <div id="message" class="mt-4 text-center"></div>
+    </div>
+  </div>
+
+  <script src="js/supabase.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    // 登录表单提交
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const code = document.getElementById('code').value;
+      const message = document.getElementById('message');
+
+      // 先尝试普通登录
+      let { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      // 如果需要验证邮箱
+      if (error && error.message.includes('email not confirmed')) {
+        if (!code) {
+          message.textContent = '请先验证邮箱！验证码已发送至你的邮箱';
+          message.style.color = 'orange';
+          // 重新发送验证邮件
+          await supabase.auth.resend({
+            type: 'signup',
+            email
+          });
+          return;
+        }
+
+        // 验证邮箱验证码
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          email,
+          token: code,
+          type: 'signup'
+        });
+
+        if (verifyError) {
+          message.textContent = '验证码错误！';
+          message.style.color = 'red';
+          return;
+        }
+
+        // 验证成功后重新登录
+        const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+
+        if (loginError) {
+          message.textContent = '登录失败：' + loginError.message;
+          message.style.color = 'red';
+          return;
+        }
+
+        data = loginData;
+      }
+
+      if (error) {
+        message.textContent = '登录失败：' + error.message;
+        message.style.color = 'red';
+        return;
+      }
+
+      // 登录成功
+      message.textContent = '登录成功！正在跳转...';
+      message.style.color = 'green';
+      setTimeout(() => {
+        window.location.href = 'index.html';
+      }, 1000);
+    });
+  </script>
+</body>
+</html>

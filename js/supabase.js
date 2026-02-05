@@ -1,9 +1,10 @@
-// 替换为你的Supabase项目信息
-const SUPABASE_URL = "https://kkeadjqzxqmqrvmzclwe.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrZWFkanF6eHFtcXJ2bXpjbHdlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMDE3MzIsImV4cCI6MjA4NTc3NzczMn0.Ox7W5-xF2qfi-UXggb7oMa8SHBR_oBw9BV_-WwnqEc8";
-
-// 初始化Supabase客户端
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// 正确的初始化代码（补充你漏写的new关键字）
+import { createClient } from '@supabase/supabase-js'; // 如果没引入，加这行
+// 或CDN方式（确保页面已引入Supabase SDK）
+const SUPABASE_URL = "你的Project URL";
+const SUPABASE_ANON_KEY = "你的anon public key";
+// 核心：new supabase.createClient → 正确是 supabase.createClient（无new）
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // 全局用户状态
 let currentUser = null;
